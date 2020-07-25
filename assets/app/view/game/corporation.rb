@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'view/game/abilities'
 require 'view/game/actionable'
 require 'view/game/companies'
 
@@ -42,6 +43,7 @@ module View
         unless @corporation.minor?
           children << render_shares
           children << h(Companies, owner: @corporation, game: @game) if @corporation.companies.any?
+          children << h(Abilities, owner: @corporation, game: @game, ) if @corporation.all_abilities.any?
         end
 
         if @corporation.owner
