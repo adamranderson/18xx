@@ -9,13 +9,14 @@ module View
       class SingleRevenue < Snabberb::Component
         needs :revenue
         needs :transform, default: 'translate(0 0)'
+        needs :force, default: nil
 
         def render
-          return h(:g) if @revenue.zero?
+          return h(:g) if @revenue.zero? && !@force
 
           circle_props = {
             attrs: {
-              r: @revenue > 99 ? 17 : 15,
+              r: radius_for_revenue(@revenue),
               fill: 'white',
             },
             style: {
@@ -40,6 +41,16 @@ module View
               h('text.number', text_props, @revenue),
             ]
           )
+        end
+
+        def radius_for_revenue(_revenue)
+          if @revenue > 99
+            17
+          elsif @revenue.negative?
+            18
+          else
+            15
+          end
         end
       end
     end

@@ -12,7 +12,7 @@ module View
       other_links = [item('About', '/about')]
 
       if @user
-        other_links << item("Profile (#{@user['name']})", '/profile')
+        other_links << item("Profile (#{@user['name']})", "/profile/#{@user['id']}")
       else
         other_links << item('Signup', '/signup')
         other_links << item('Login', '/login')
@@ -21,10 +21,9 @@ module View
       props = {
         style: {
           display: 'flex',
-          marginBottom: '1rem',
-          paddingBottom: '1vmin',
-          'box-shadow': '0 2px 0 0 gainsboro',
-          'justify-content': 'space-between',
+          padding: '0.75vmin 0',
+          boxShadow: '0 2px 0 0 gainsboro',
+          justifyContent: 'space-between',
         },
       }
 
@@ -40,7 +39,7 @@ module View
           href: href,
         },
         style: {
-          margin: '0 1rem',
+          margin: '0 0.5rem',
         },
       }
       h(:a, props, name)

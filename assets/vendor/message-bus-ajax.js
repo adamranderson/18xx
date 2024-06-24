@@ -2,27 +2,21 @@
 // as a fallback if jQuery is not present
 //
 // Only implements methods & options used by MessageBus
-(function(global, undefined) {
+(function(global) {
   'use strict';
   if (!global.MessageBus){
       throw new Error("MessageBus must be loaded before the ajax adapter");
   }
 
-  var cacheBuster =  Math.random() * 10000 | 0;
-
   global.MessageBus.ajax = function(options){
     var XHRImpl = (global.MessageBus && global.MessageBus.xhrImplementation) || global.XMLHttpRequest;
     var xhr = new XHRImpl();
     xhr.dataType = options.dataType;
-    var url = options.url;
-    if (!options.cache){
-      url += ((-1 == url.indexOf('?')) ? '?' : '&') + '_=' + (cacheBuster++)
-    }
-    xhr.open('POST', url);
+    xhr.open('POST', options.url);
     for (var name in options.headers){
       xhr.setRequestHeader(name, options.headers[name]);
     }
-    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     if (options.messageBus.chunked){
       options.messageBus.onProgressListener(xhr);
     }
@@ -37,7 +31,7 @@
         options.complete();
       }
     }
-    xhr.send(JSON.stringify(options.data));
+    xhr.send(new URLSearchParams(options.data).toString());
     return xhr;
   };
 

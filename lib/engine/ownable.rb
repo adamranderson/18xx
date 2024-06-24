@@ -11,11 +11,23 @@ module Engine
     end
 
     def player
-      owner.is_a?(Player) ? owner : owner&.player
+      owner&.player? ? owner : owner&.player
+    end
+
+    def corporation
+      corporation? ? self : owner&.corporation
     end
 
     def owned_by_corporation?
-      owner.is_a?(Corporation)
+      owner&.corporation?
+    end
+
+    def owned_by_player?
+      owner&.player?
+    end
+
+    def corporation?
+      false
     end
   end
 end

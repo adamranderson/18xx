@@ -1,37 +1,31 @@
 # frozen_string_literal: true
 
 require_relative 'base'
+require_relative 'auctioner'
 
 module Engine
   module Step
     class WaterfallAuction < Base
+      include Auctioner
+      include ProgrammerAuctionBid
+
       ACTIONS = %w[bid pass].freeze
 
-      attr_reader :bids, :companies
+      attr_reader :companies
 
       def description
         'Bid on Companies'
       end
 
-      def pass_description
-        if auctioning_company
-          "Pass (on #{auctioning_company.sym})"
-        else
-          'Pass'
-        end
+      def available
+        @companies
       end
 
       def process_pass(action)
         entity = action.entity
 
-        if auctioning_company
-          @log << "#{entity.name} passes on #{auctioning_company.name}"
-
-          # Remove ourselves from the current bidding, but we can come back in.
-          @bids[auctioning_company]&.reject! do |bid|
-            bid.entity == entity
-          end
-          resolve_bids
+        if auctioning
+          pass_auction(action.entity)
         else
           @log << "#{entity.name} passes bidding"
           entity.pass!
@@ -43,7 +37,7 @@ module Engine
       def process_bid(action)
         action.entity.unpass!
 
-        if auctioning_company
+        if auctioning
           add_bid(action)
         else
           placement_bid(action)
@@ -52,7 +46,7 @@ module Engine
       end
 
       def active_entities
-        active_company_bids do |_, bids|
+        active_auction do |_, bids|
           return [bids.min_by(&:price).entity]
         end
 
@@ -64,27 +58,23 @@ module Engine
 
         correct = false
 
-        active_company_bids do |_company, bids|
+        active_auction do |_company, bids|
           correct = bids.min_by(&:price).entity == entity
         end
 
         correct || entity == current_entity ? ACTIONS : []
       end
 
-      def min_increment
-        @game.class::MIN_BID_INCREMENT
-      end
-
       def setup
-        @companies = @game.companies.sort_by(&:min_bid)
+        setup_auction
+        @companies = @game.initial_auction_companies.sort_by(&:value)
         @cheapest = @companies.first
-        @bids = Hash.new { |h, k| h[k] = [] }
         @bidders = Hash.new { |h, k| h[k] = [] }
       end
 
       def round_state
         {
-          company_pending_par: nil,
+          companies_pending_par: [],
         }
       end
 
@@ -92,44 +82,63 @@ module Engine
         return unless company
         return company.min_bid if may_purchase?(company)
 
-        high_bid = @bids[company].max_by(&:price)
+        high_bid = highest_bid(company)
         (high_bid ? high_bid.price : company.min_bid) + min_increment
       end
 
       def may_purchase?(company)
-        active_company_bids { return false }
+        active_auction { return false }
         company && company == @companies.first
       end
 
-      def committed_cash(player)
+      def committed_cash(player, _show_hidden = false)
         bids_for_player(player).sum(&:price)
-      end
-
-      def current_bid_amount(player, company)
-        bids[company]&.find { |b| b.entity == player }&.price || 0
       end
 
       def max_bid(player, company)
         player.cash - committed_cash(player) + current_bid_amount(player, company)
       end
 
-      private
+      protected
+
+      def resolve_bids
+        until (company = @companies.first).nil?
+          break unless resolve_bids_for_company(company)
+        end
+      end
+
+      def resolve_bids_for_company(company)
+        resolved = false
+        is_new_auction = company != @auctioning
+        @auctioning = nil
+        bids = @bids[company]
+
+        if bids.one?
+          accept_bid(bids.first)
+          resolved = true
+        elsif can_auction?(company)
+          @auctioning = company
+          @log << "#{@auctioning.name} goes up for auction" if is_new_auction
+        end
+
+        resolved
+      end
+
+      def active_auction
+        company = @auctioning
+        bids = @bids[company]
+        yield company, bids if bids.size > 1
+      end
+
+      def can_auction?(company)
+        company == @companies.first && @bids[company].size > 1
+      end
 
       def all_passed!
         # Everyone has passed so we need to run a fake OR.
         if @companies.include?(@cheapest)
           # No one has bought anything so we reduce the value of the cheapest company.
-          value = @cheapest.min_bid
-          @cheapest.discount += 5
-          new_value = @cheapest.min_bid
-          @log << "#{@cheapest.name} minimum bid decreases from "\
-            "#{@game.format_currency(value)} to #{@game.format_currency(new_value)}"
-
-          if new_value <= 0
-            # It's now free so the current player is forced to take it.
-            buy_company(current_entity, @cheapest, 0)
-            resolve_bids
-          end
+          increase_discount!(@cheapest, 5)
         else
           @game.payout_companies
           @game.or_set_finished
@@ -138,18 +147,24 @@ module Engine
         entities.each(&:unpass!)
       end
 
-      def active_company_bids
-        company = @companies[0]
-        bids = @bids[company]
-        yield company, bids if bids.any?
-      end
+      def increase_discount!(company, discount)
+        value = company.min_bid
+        company.discount += discount
+        new_value = company.min_bid
+        @log << "#{company.name} minimum bid decreases from "\
+                "#{@game.format_currency(value)} to #{@game.format_currency(new_value)}"
 
-      def auctioning_company
-        active_company_bids { |company, _| company }
+        return if new_value.positive?
+
+        # It's now free so the next player is forced to take it.
+        @round.next_entity_index!
+        buy_company(current_entity, company, 0)
+        resolve_bids
       end
 
       def placement_bid(bid)
-        if @companies.first == bid.company
+        if may_purchase?(bid.company)
+          @round.last_to_act = bid.entity
           @auction_triggerer = bid.entity
           accept_bid(bid)
           resolve_bids
@@ -158,40 +173,13 @@ module Engine
         end
       end
 
-      def resolve_bids
-        while (bids = @bids[@companies.first])
-          break if bids.empty?
-          break @log << "#{auctioning_company.name} goes up for auction" unless bids.one?
-
-          accept_bid(bids.first)
-        end
-      end
-
-      def accept_bid(bid)
-        price = bid.price
-        company = bid.company
-        player = bid.entity
-        buy_company(player, company, price)
-        @bids.delete(company)
-      end
-
-      def add_bid(bid)
-        company = bid.company
-        entity = bid.entity
-        price = bid.price
-        min = min_bid(company)
-        raise Engine::GameError, "Minimum bid is #{@game.format_currency(min)} for #{company.name}" if price < min
-        raise GameError, 'Cannot afford bid' if bids_for_player(entity).sum(&:price) > entity.cash
-
-        bids = @bids[company]
-        bids.reject! { |b| b.entity == entity }
-        bids << bid
-        @bidders[company] |= [entity]
-
-        @log << "#{entity.name} bids #{@game.format_currency(price)} for #{bid.company.name}"
-      end
-
       def buy_company(player, company, price)
+        if (available = max_bid(player, company)) < price
+          raise GameError, "#{player.name} has #{@game.format_currency(available)} "\
+                           'available and cannot spend '\
+                           "#{@game.format_currency(price)}"
+        end
+
         company.owner = player
         player.companies << company
         player.spend(price, @game.bank) if price.positive?
@@ -202,27 +190,34 @@ module Engine
           "#{player.name} buys #{company.name} for #{@game.format_currency(price)}"
         when 1
           "#{player.name} wins the auction for #{company.name} "\
-            "with the only bid of #{@game.format_currency(price)}"
+          "with the only bid of #{@game.format_currency(price)}"
         else
           "#{player.name} wins the auction for #{company.name} "\
-            "with a bid of #{@game.format_currency(price)}"
+          "with a bid of #{@game.format_currency(price)}"
         end
 
-        company.abilities(:share) do |ability|
-          share = ability.share
-
-          if share.president
-            @round.company_pending_par = company
-          else
-            @game.share_pool.buy_shares(player, share, exchange: :free)
-          end
-        end
+        @game.after_buy_company(player, company, price)
       end
 
-      def bids_for_player(player)
-        @bids.values.map do |bids|
-          bids.find { |bid| bid.entity == player }
-        end.compact
+      private
+
+      def accept_bid(bid)
+        price = bid.price
+        company = bid.company
+        player = bid.entity
+        @bids.delete(company)
+        buy_company(player, company, price)
+      end
+
+      def add_bid(bid)
+        super
+        company = bid.company
+        price = bid.price
+        entity = bid.entity
+
+        @bidders[company] |= [entity]
+
+        @log << "#{entity.name} bids #{@game.format_currency(price)} for #{bid.company.name}"
       end
     end
   end

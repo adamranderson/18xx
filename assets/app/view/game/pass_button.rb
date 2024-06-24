@@ -7,14 +7,21 @@ module View
     class PassButton < Snabberb::Component
       include Actionable
 
+      needs :for_player, default: nil
+      needs :before_process_pass, default: -> {}, store: true
+
       def render
         props = {
           on: {
-            click: -> { process_action(Engine::Action::Pass.new(@game.current_entity)) },
+            click: lambda do
+              @before_process_pass.call
+              process_action(Engine::Action::Pass.new(@for_player || @game.pass_entity(@user)))
+            end,
           },
         }
 
-        h('button.button', props, @game.round.pass_description)
+        for_text = @for_player ? " (#{@for_player.name})" : ''
+        h('button#pass', props, "#{@game.round.pass_description}#{for_text}")
       end
     end
   end

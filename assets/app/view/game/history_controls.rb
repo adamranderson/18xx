@@ -2,66 +2,63 @@
 
 require 'lib/params'
 require 'view/link'
+require 'view/game/actionable'
 
 module View
   module Game
     class HistoryControls < Snabberb::Component
-      needs :app_route, default: nil, store: true
-      needs :num_actions, default: 0
+      include Actionable
+      needs :last_action_id, default: 0
       needs :game, store: true
       needs :round_history, default: nil, store: true
 
       def render
-        return h(:div) if @num_actions.zero?
+        return h(:div) if @last_action_id.zero?
 
-        divs = [h('b.margined', 'History')]
+        divs = [h(:h3, { style: { margin: '0', justifySelf: 'left' } }, 'History')]
         cursor = Lib::Params['action']&.to_i
+        style_extra = { padding: '0.2rem 0.5rem', width: '100%' }
 
         unless cursor&.zero?
-          divs << link('|<', 0)
+          divs << history_link('|<', 'Start', 0, style_extra, true, 'Home')
+          if (last_round = cursor ? @game.round_history.reverse.find { |rh| rh < cursor } : @game.round_history[-1])
+            divs << history_link('<<', 'Previous Round', last_round,
+                                 { gridColumnStart: '3', **style_extra }, true, 'ArrowUp')
+          end
 
-          last_round =
-            if cursor == @game.actions.size
-              @game.round_history[-2]
+          prev_action =
+            if @game.exception
+              @game.last_processed_action
             else
-              @game.round_history[-1]
+              @game.previous_action_id_from(cursor || @game.last_game_action_id)
             end
-          divs << link('<<', last_round) if last_round
-
-          divs << link('<', cursor ? cursor - 1 : @num_actions - 1)
+          divs << history_link('<', 'Previous Action', prev_action,
+                               { gridColumnStart: '4', **style_extra }, true, 'ArrowLeft')
         end
 
-        if cursor
-          divs << link('>', cursor + 1 < @num_actions ? cursor + 1 : nil)
+        if cursor && !@game.exception
+          next_action_id = @game.next_action_id_from(cursor)
+          next_action_id = nil if @last_action_id == next_action_id
+          divs << history_link('>', 'Next Action', next_action_id,
+                               { gridColumnStart: '5', **style_extra }, true, 'ArrowRight')
           store(:round_history, @game.round_history, skip: true) unless @round_history
-          next_round = @round_history[@game.round_history.size]
-          divs << link('>>', next_round) if next_round
-          divs << link('>|')
+          if (next_round = @round_history.find { |rh| rh > cursor })
+            divs << history_link('>>', 'Next Round', next_round,
+                                 { gridColumnStart: '6', **style_extra }, true, 'ArrowDown')
+          end
+          divs << history_link('>|', 'Current Action', nil, { gridColumnStart: '7', **style_extra }, true, 'End')
         end
 
-        h(:div, divs)
-      end
-
-      def link(text, action_id = nil)
-        route = Lib::Params.add(@app_route, 'action', action_id)
-
-        click = lambda do
-          store(:round_history, @game.round_history, skip: true) unless @round_history
-          store(:round_history, nil, skip: true) unless action_id
-          store(:app_route, route)
-        end
-
-        h(
-          Link,
-          href: route,
-          click: click,
-          children: text,
+        props = {
           style: {
-            color: 'currentColor',
-            'margin-right': '2rem',
-            'text-decoration': 'none',
+            display: 'grid',
+            grid: '1fr / 4.2rem repeat(6, minmax(2rem, 2.5rem))',
+            justifyItems: 'center',
+            gap: '0 0.5rem',
           },
-        )
+        }
+
+        h(:div, props, divs)
       end
     end
   end

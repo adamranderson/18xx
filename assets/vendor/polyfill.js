@@ -10,6 +10,7 @@ if (typeof window === 'undefined') {
       }
     },
     requestAnimationFrame: function() {},
+    scroll: function() {},
     scrollTo: function() {},
     location: {
       pathname: '',
@@ -31,6 +32,12 @@ if (typeof localStorage === 'undefined') {
 
 if (typeof document === 'undefined') {
   document = {
+    getElementById: function() {
+      return {
+        content: '',
+        href: ''
+      }
+    }
   }
 }
 

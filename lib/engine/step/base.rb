@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
+require_relative '../helper/type'
 require_relative '../passer'
 
 module Engine
   module Step
     class Base
+      include Helper::Type
       include Passer
       attr_accessor :acted
 
@@ -30,9 +32,15 @@ module Engine
         []
       end
 
-      def available_hex(hex); end
+      def auto_actions(_entity); end
+
+      def available_hex(entity, hex); end
 
       def did_sell?(_corporation, _entity)
+        false
+      end
+
+      def last_acted_upon?(_corporation, _entity)
         false
       end
 
@@ -50,12 +58,15 @@ module Engine
       end
 
       def skip!
-        log_skip(current_entity) unless @acted
+        log_skip(current_entity) if !@acted && current_entity
         pass!
       end
 
       def current_actions
-        current_entity ? actions(current_entity) : []
+        entity = current_entity
+        return [] if !entity || entity.closed?
+
+        actions(entity)
       end
 
       def current_entity
@@ -71,15 +82,11 @@ module Engine
       end
 
       def blocking?
-        blocks? && current_actions.any?
+        blocks? && !current_actions.empty?
       end
 
       def blocks?
         true
-      end
-
-      def sequential?
-        false
       end
 
       def setup; end
@@ -87,6 +94,15 @@ module Engine
       def unpass!
         super
         @acted = false
+      end
+
+      # see assets/app/view/game/help.rb
+      def help
+        ''
+      end
+
+      def auctioneer?
+        false
       end
 
       private
@@ -97,6 +113,18 @@ module Engine
 
       def entity_index
         @round.entity_index
+      end
+
+      def buying_power(entity)
+        @game.buying_power(entity)
+      end
+
+      def try_take_loan(entity, price); end
+
+      def try_take_player_loan(entity, price); end
+
+      def inspect
+        "<#{self.class.name}>"
       end
     end
   end

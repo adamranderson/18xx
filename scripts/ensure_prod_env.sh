@@ -6,12 +6,8 @@ if [ -z "${DATABASE_URL}" ]; then
     bad_vars_msg="${bad_vars_msg}\n- DATABASE_URL"
 fi
 
-if [ -z "${MAIL_JET_KEY}" ]; then
-    bad_vars_msg="${bad_vars_msg}\n- MAIL_JET_KEY"
-fi
-
-if [ -z "${MAIL_JET_SECRET}" ]; then
-    bad_vars_msg="${bad_vars_msg}\n- MAIL_JET_SECRET"
+if [ -z "${ELASTIC_KEY}" ]; then
+    bad_vars_msg="${bad_vars_msg}\n- ELASTIC_KEY"
 fi
 
 if [ -z "${POSTGRES_USER}" ]; then
@@ -24,6 +20,14 @@ fi
 
 if [ -z "${POSTGRES_DB}" ]; then
     bad_vars_msg="${bad_vars_msg}\n- POSTGRES_DB"
+fi
+
+if [ -z "${NEW_RELIC_LICENSE_KEY}" ]; then
+    bad_vars_msg="${bad_vars_msg}\n- NEW_RELIC_LICENSE_KEY"
+fi
+
+if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+    bad_vars_msg="${bad_vars_msg}\n- SLACK_WEBHOOK_URL"
 fi
 
 if [ ! -z "${bad_vars_msg}" ]; then

@@ -3,7 +3,9 @@
 require 'game_manager'
 require 'lib/storage'
 require 'view/game/game_data'
+require 'view/game/notepad'
 require 'view/game/actionable'
+require 'view/game/auto_router_settings'
 
 module View
   module Game
@@ -18,8 +20,18 @@ module View
       def render
         @settings = Lib::Storage[@game.id] || {}
         h(:div, [
+          h(Notepad),
+          h(RenameHotseat),
           *render_tools,
-          h(GameData, actions: @game.actions.map(&:to_h)),
+          h(AutoRouterSettings),
+          h(GameData, actions: @game.raw_actions.map(&:to_h)),
+          *help_links,
+        ])
+      end
+
+      def player_notification
+        h('div.margined', [
+          h(:label, 'Send any player a notification (via email/webhooks) by tagging them in game chat: @username'),
         ])
       end
 
@@ -29,49 +41,51 @@ module View
           Lib::Storage[@game.id] = @settings.merge('master_mode' => !mode)
           update
         end
+
         h('div.margined', [
-          'Master Mode (Enable to move for others):',
-          h('button.button', { style: { margin: '1rem' }, on: { click: toggle } }, mode ? 'Disable' : 'Enable'),
+          h(:button, { on: { click: toggle } }, "Master Mode #{mode ? '✅' : '❌'}"),
+          h(:label, "#{mode ? 'You can' : 'Enable to'} move for others"),
         ])
       end
 
       def end_game
-        end_game = if @confirm_endgame
-                     confirm = lambda do
-                       store(:confirm_endgame, false)
-                       process_action(Engine::Action::EndGame.new(@game.current_entity))
-                       # Go to main page
-                       store(:app_route, @app_route.split('#').first)
-                     end
-                     [
-                       h(
-                         'button.button',
-                         { style: { margin: '1rem' }, on: { click: confirm } },
-                         'Confirm End Game',
-                       ),
-                       h(
-                         'button.button',
-                         { style: { margin: '1rem' }, on: { click: -> { store(:confirm_endgame, false) } } },
-                         'Cancel',
-                       ),
-                     ]
-                   else
-                     [
-                       h(
-                         'button.button',
-                         { style: { margin: '1rem' }, on: { click: -> { store(:confirm_endgame, true) } } },
-                         'End Game',
-                       ),
-                     ]
-                   end
+        end_game =
+          if @confirm_endgame
+            confirm = lambda do
+              store(:confirm_endgame, false)
+              player = @game.players.find { |p| p.name == @user&.dig('name') }
+              process_action(Engine::Action::EndGame.new(player || @game.current_entity))
+              # Go to main page
+              store(:app_route, @app_route.split('#').first)
+            end
+            [
+              h(:button, { on: { click: -> { store(:confirm_endgame, false) } }, style: { width: '7rem' } }, 'Cancel'),
+              h(:button, { on: { click: confirm } }, 'Confirm End Game'),
+            ]
+          else
+            [
+              h(:button, { on: { click: -> { store(:confirm_endgame, true) } }, style: { width: '7rem' } }, 'End Game'),
+            ]
+          end
 
-        h('div.margined', [h('span', 'End Game:'), *end_game])
+        h('div.margined', end_game)
       end
 
       def render_tools
-        children = [master_mode]
+        children = [player_notification, master_mode]
         children << end_game unless @game.finished
         children
+      end
+
+      def help_links
+        props = {
+          attrs: {
+            href: 'https://github.com/tobymao/18xx/wiki/Power-User-Features#hotkeys--shortcuts',
+            title: 'Open wiki: hotkeys & shortcuts',
+          },
+        }
+
+        [h(:h2, 'Help'), h(:a, props, 'Hotkeys & Shortcuts')]
       end
     end
   end

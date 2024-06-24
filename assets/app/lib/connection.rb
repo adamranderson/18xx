@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# backtick_javascript: true
+
 require 'lib/storage'
 
 module Lib
@@ -40,7 +42,7 @@ module Lib
         if (error = data['error'])
           @root.store(:flash_opts, error)
         elsif block
-          block.call(data)
+          yield(data)
         end
       end
     end
@@ -50,34 +52,21 @@ module Lib
         if (error = data['error'])
           @root.store(:flash_opts, error)
         elsif block
-          block.call(data)
+          yield(data)
         end
       end
     end
 
-    def authenticate!
-      `MessageBus.headers = {'Authorization': #{auth_token}}`
-    end
-
-    def invalidate!
-      `MessageBus.headers = {}`
-    end
-
     private
 
-    def auth_token
-      Lib::Storage['auth_token']
-    end
-
     def send(path, method, data, prefix, block) # rubocop:disable Lint/UnusedMethodArgument
-      data = data&.merge('_client_id': `MessageBus.clientId`)
+      data = data&.merge(_client_id: `MessageBus.clientId`)
 
       %x{
         var payload = {
           method: #{method},
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': #{auth_token},
           }
         }
 

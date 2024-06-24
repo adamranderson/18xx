@@ -6,17 +6,20 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+    OPAL_PREFORK_DISABLE: "true"
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Ruby 2.7
-      uses: actions/setup-ruby@v1
+    - uses: actions/checkout@v3
+    - name: Set up Ruby 3.2
+      uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 2.7.x
+        ruby-version: 3.2
     - name: Build and test with Rake
       run: |
         gem install bundler

@@ -2,73 +2,91 @@
 
 require 'view/game/actionable'
 require 'view/game/company'
+require 'view/game/buy_value_input'
 
 module View
   module Game
     class BuyCompanies < Snabberb::Component
       include Actionable
-
+      needs :show_other_players, default: nil, store: true
       needs :selected_company, default: nil, store: true
       needs :limit_width, default: false
 
       def render
         @corporation = @game.current_entity
-        props = @limit_width ? { style: { flexGrow: '1', width: '0', marginRight: '-1rem' } } : {}
+        props = @limit_width ? { style: { flexGrow: '1', width: '0' } } : {}
 
         h(:div, props, [
           *render_companies,
         ].compact)
       end
 
+      def owned_by_other_player?(player, company)
+        return false unless company&.owner # Bank owned, not a player
+
+        player != company&.owner
+      end
+
       def render_companies
+        hidden_companies = false
         props = {
           style: {
             display: 'inline-block',
-            'vertical-align': 'top',
+            verticalAlign: 'top',
           },
         }
 
         companies = @game.purchasable_companies.sort_by do |company|
-          [company.owner == @corporation.owner ? 0 : 1, company.value]
+          [!owned_by_other_player?(@corporation.owner, company) ? 0 : 1, company.value]
         end
 
-        companies.map do |company|
+        companies_to_buy = companies.map do |company|
+          if owned_by_other_player?(@corporation.owner, company) && !@show_other_players
+            hidden_companies = true
+            next
+          end
           children = [h(Company, company: company)]
           children << render_input if @selected_company == company
           h(:div, props, children)
         end
-      end
 
-      def render_input
-        input = h(:input, style: { 'margin-right': '1rem' }, props: {
-          value: @selected_company.max_price,
-          type: 'number',
-          min: @selected_company.min_price,
-          max: @selected_company.max_price,
-          size: @corporation.cash.to_s.size,
-        })
-
-        buy = lambda do
-          price = input.JS['elm'].JS['value'].to_i
-          process_action(Engine::Action::BuyCompany.new(
-            @corporation,
-            company: @selected_company,
-            price: price,
-          ))
-          store(:selected_company, nil, skip: true)
-        end
-
-        props = {
+        button_props = {
           style: {
-            'text-align': 'center',
-            'margin': '1rem',
+            display: 'grid',
+            gridColumn: '1/4',
+            width: 'max-content',
           },
         }
 
-        h(:div, props, [
-          input,
-          h(:button, { on: { click: buy } }, 'Buy'),
-        ])
+        if hidden_companies
+          companies_to_buy << h('button.no_margin',
+                                { on: { click: -> { store(:show_other_players, true) } }, **button_props },
+                                'Show companies from other players')
+        elsif @show_other_players
+          companies_to_buy << h('button.no_margin',
+                                { on: { click: -> { store(:show_other_players, false) } }, **button_props },
+                                'Hide companies from other players')
+        end
+        companies_to_buy.compact
+      end
+
+      def render_input
+        step = @game.round.step_for(@corporation, 'buy_company')
+        buyer = if step.respond_to?(:spender)
+                  step.spender(@corporation)
+                else
+                  @corporation
+                end
+        max_price = max_purchase_price(buyer, @selected_company)
+
+        h(BuyValueInput, value: max_price, min_value: @selected_company.min_price,
+                         max_value: max_price,
+                         size: buyer.cash.to_s.size,
+                         selected_entity: @selected_company)
+      end
+
+      def max_purchase_price(corporation, company)
+        [company.max_price(corporation), corporation.cash].min
       end
     end
   end

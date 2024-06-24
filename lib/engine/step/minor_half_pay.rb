@@ -5,31 +5,39 @@ module Engine
     module MinorHalfPay
       def actions(entity)
         return [] if entity.minor?
+        return [] if entity.corporation? && entity.type == :minor
 
         super
       end
 
       def skip!
-        return super if current_entity.corporation?
+        return super if current_entity.corporation? && current_entity.type != :minor
 
-        revenue = routes.sum(&:revenue)
+        revenue = @game.routes_revenue(routes)
         process_dividend(Action::Dividend.new(
           current_entity,
           kind: revenue.positive? ? 'payout' : 'withhold',
         ))
       end
 
-      def payout(entity, revenue)
-        return super if entity.corporation?
+      def share_price_change(entity, revenue = 0)
+        return super if entity.corporation? && entity.type != :minor
 
-        @log << "#{entity.name} pays out #{@game.format_currency(revenue)}"
+        {}
+      end
+
+      def payout(entity, revenue)
+        return super if entity.corporation? && entity.type != :minor
 
         amount = revenue / 2
+        { corporation: amount, per_share: amount }
+      end
 
-        [entity, entity.owner].each do |entity2|
-          @log << "#{entity2.name} receives #{@game.format_currency(amount)}"
-          @game.bank.spend(amount, entity2)
-        end
+      def payout_shares(entity, revenue)
+        return super if entity.corporation? && entity.type != :minor
+
+        @log << "#{entity.owner.name} receives #{@game.format_currency(revenue)}"
+        @game.bank.spend(revenue, entity.owner)
       end
     end
   end

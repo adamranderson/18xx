@@ -2,107 +2,119 @@
 
 require './spec/spec_helper'
 
-require 'engine'
+require 'find'
 require 'json'
 
+# run all games found in spec/fixtures/, verify that the engine gets the result
+# indicated in the game's "result" key in the JSON
 module Engine
-  TEST_CASES = {
-    GAMES_BY_TITLE['1846'] => {
-      4106 => {
-        'CheesePetrol' => 6137,
-        'Tim Prime' => 6338,
-        'toast' => 7585,
-        'tomusher' => 5431,
-      },
-      4123 => {
-        'Eric_Tama' => 5793,
-        'Siraj' => 5080,
-        'creslin792' => 6178,
-        'markcp' => 6225,
-      },
-    },
-    GAMES_BY_TITLE['18Chesapeake'] => {
-      1825 => {
-        'Phoofstix' => 8187,
-        'ladycake' => 6380,
-      },
-      3055 => {
-        'CullenF' => 4960,
-        'KillerMonkey' => 3456,
-        'Nastroker' => 4782,
-        'SamK' => 5649,
-        'hhlodesign' => 4472,
-      },
-      1277 => {
-        'Harshit' => 1216,
-        'jagdish' => 1045,
-        'mfwesq' => 1153,
-        'tgg' => 600,
-        'wery' => 1028,
-      },
-      1905 => {
-        'Apreche' => 4604,
-        'GeekNightsRym' => 4210,
-        'agrajag' => 6214,
-        'pence' => 4848,
-      },
-      2593 => {
-        'Harshit' => 4661,
-        'isaacbf' => 3848,
-        'jagdish' => 4697,
-        'mfwesq' => 4319,
-        'wery' => 3333,
-      },
-    },
-    GAMES_BY_TITLE['1889'] => {
-      247 => {
-        'fdinh' => 1059,
-        'gugvib' => 1073,
-        'marco4884' => 1089,
-        'vecchioleone' => 275,
-      },
-      314 => {
-        'Rebus' => 1134,
-        'johnhawkhaines' => 320,
-        'scottredracecar' => 1473,
-      },
-      962 => {
-        'Dimikosta' => 3091,
-        'Joshua6' => 4317,
-        'SamK' => 4444,
-        'ventusignis' => 3880,
-      },
-    },
-    GAMES_BY_TITLE['1836Jr30'] => {
-      2809 => {
-        'Azureth' => 4833,
-        'Navor' => 3034,
-        'willbeplaying' => 2095,
+  Find.find(FIXTURES_DIR).select { |f| File.basename(f) =~ /.json/ }.each do |fixture|
+    game_title = File.basename(File.dirname(fixture))
+    filename = File.basename(fixture)
+    game_id = filename.split('.json').first
+    describe game_title do
+      context game_id do
+        it 'matches result exactly' do
+          data = JSON.parse(File.read(fixture))
+          result = data['result']
 
-      },
-      2851 => {
-        'Shaz' => 5693,
-        'markmenm' => 3159,
-        'scottredracecar' => 5021,
-      },
-    },
-  }.freeze
+          game_result = JSON.parse(JSON.generate(Engine::Game.load(data).maybe_raise!.result))
+          expect(game_result).to eq(result)
 
-  TEST_CASES.each do |game, results|
-    describe game do
-      results.each do |game_id, result|
-        context game_id do
-          it 'matches result exactly' do
-            game_path = game.title.gsub(/(.)([A-Z])/, '\1_\2').downcase
-            data = JSON.parse(File.read("spec/fixtures/#{game_path}/#{game_id}.json"))
-            players = data['players'].map { |p| p['name'] }
-            expect(game.new(players, id: game_id, actions: data['actions']).result).to eq(result)
-            rungame = game.new(players, id: game_id, actions: data['actions'], strict: true)
-            expect(rungame.result).to eq(result)
-            expect(rungame.finished).to eq(true)
+          rungame = Engine::Game.load(data, strict: true).maybe_raise!
+          expect(JSON.parse(JSON.generate(rungame.result))).to eq(result)
+          expect(rungame.finished).to eq(true)
+
+          # some fixtures want to test that the last N actions of the game replayed the same as in the fixture
+          test_last_actions = data['test_last_actions']
+          next unless test_last_actions
+
+          actions = data['actions']
+          (1..(test_last_actions.to_i)).each do |index|
+            run_action = rungame.actions[rungame.actions.size - index].to_h
+            expect(run_action).to eq(actions[actions.size - index])
           end
         end
       end
+    end
+  end
+
+  AUTO_FIXTURES = [
+    '1861/29683.json', # token pass
+    ['1830/29133.json', 150], # buy till float
+    '1817NA/25363.json', # pass in merger
+    '1882/hs_iopxwxht_26178.json', # Auto-pass pass
+    '1882/hs_fxmfdndg_26178.json', # Auto-pass disable (shares sold)
+    '1882/hs_kufujwkw_26178.json', # Auto-pass disable (PAR)
+    '1882/hs_vaxptumi_26178.json', # Auto-pass disable (buy unsecure)
+    '1889/hs_lhglbbiz_17502.json', # Auto-buy from market
+    '1889/hs_jmmljkbw_17502.json', # Auto-buy multiple from IPO
+    '1822/hs_lxemeslq_30797.json', # Auto-pass 1822 bid cases
+  ].freeze
+
+  AUTO_FIXTURES.each do |fixture_name|
+    fixture_name, max_action = fixture_name if fixture_name.is_a?(Array)
+    fixture = FIXTURES_DIR + '/' + fixture_name
+    game_title = File.basename(File.dirname(fixture))
+    filename = File.basename(fixture)
+    game_id = filename.split('.json').first
+    describe game_title do
+      context game_id do
+        it 'should generate the same auto actions' do
+          data = JSON.parse(File.read(fixture))
+          rungame = Engine::Game.load(data, strict: true).maybe_raise!
+
+          actions = rungame.class.filtered_actions(data['actions']).first
+          # Find all the auto_actions
+          actions.compact.each do |action|
+            next unless action['auto_actions']
+
+            break if max_action && action['id'] >= max_action
+
+            # Run game as per the spec
+            spec_game = Game.load(data, at_action: action['id'])
+
+            # Process game to previous action
+            auto_game = Game.load(data, at_action: action['id'] - 1)
+
+            # Add the action but without the auto actions
+            clone = action.dup
+            clone.delete('auto_actions')
+            auto_game.process_action(clone, add_auto_actions: true)
+
+            # Remove time the actions were created at
+            spec_last = spec_game.actions.last.to_h
+            spec_last['auto_actions']&.each { |a| a.delete('created_at') }
+            auto_last = auto_game.actions.last.to_h
+            auto_last['auto_actions']&.each { |a| a.delete('created_at') }
+
+            expect(spec_game.result).to eq(auto_game.result)
+            expect(spec_last).to eq(auto_last)
+          end
+        end
+      end
+    end
+  end
+
+  describe 'Autoactions' do
+    it '1867 should provide pass when token lay is impossible' do
+      fixture = 'spec/fixtures/1867/21268.json'
+      cursor = 835
+      data = JSON.parse(File.read(fixture))
+      game = Game.load(data, at_action: cursor)
+
+      action = Engine::Action::Base.action_from_h(data['actions'][cursor], game)
+      # Check creating new auto actions
+      game.process_action(action, add_auto_actions: true)
+      expect(action.auto_actions.size).to eq(1)
+      expect(action.auto_actions.first).to be_instance_of(Engine::Action::Pass)
+      # Game should have autopassed and be at RunRoutes
+      expect(game.round.active_step).to be_instance_of(Engine::Step::Route)
+
+      # Check reading existing actions
+      game = Game.load(data, at_action: cursor)
+      game.process_action(action.to_h)
+      expect(game.round.active_step).to be_instance_of(Engine::Step::Route)
     end
   end
 end

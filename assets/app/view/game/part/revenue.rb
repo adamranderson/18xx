@@ -2,81 +2,82 @@
 
 require 'view/game/part/base'
 require 'view/game/part/multi_revenue'
+require 'view/game/part/small_item'
 
 module View
   module Game
     module Part
       class Revenue < Base
-        P_RIGHT_CORNER = {
-          region_weights: RIGHT_CORNER,
-          x: 75,
-          y: 0,
-        }.freeze
+        include SmallItem
 
-        P_LEFT_CORNER = {
-          region_weights: LEFT_CORNER,
-          x: -75,
-          y: 0,
-        }.freeze
+        FLAT_MULTI_REVENUE_LOCATIONS =
+          [
+            {
+              region_weights: { CENTER => 1.5 },
+              x: 0,
+              y: 0,
+            },
+            {
+              region_weights: { TOP_MIDDLE_ROW => 1.5 },
+              x: 0,
+              y: -48,
+            },
+            {
+              region_weights: { BOTTOM_MIDDLE_ROW => 1.5 },
+              x: 0,
+              y: 45,
+            },
+          ].freeze
 
-        P_UPPER_LEFT_CORNER = {
-          region_weights: UPPER_LEFT_CORNER,
-          x: -35,
-          y: -60.62,
-        }.freeze
+        POINTY_MULTI_REVENUE_LOCATIONS =
+          [
+            {
+              region_weights: { CENTER => 1.5 },
+              x: 0,
+              y: 0,
+            },
+            {
+              region_weights: { [2, 6, 7, 8] => 1.5, [3, 5] => 0.5 },
+              x: 0,
+              y: -55,
+            },
+            {
+              region_weights: { [15, 16, 21, 17] => 1.5, [18, 20] => 0.5 },
+              x: 0,
+              y: 55,
+            },
+          ].freeze
 
-        P_BOTTOM_LEFT_CORNER = {
-          region_weights: BOTTOM_LEFT_CORNER,
-          x: -35,
-          y: 60.62,
-        }.freeze
-
-        P_BOTTOM_RIGHT_CORNER = {
-          region_weights: BOTTOM_RIGHT_CORNER,
-          x: 35,
-          y: 60.62,
-        }.freeze
+        SIX_CITY_CENTER_REVENUE = [
+          {
+            region_weights: CENTER,
+            x: 0,
+            y: 0,
+          },
+        ].freeze
 
         def preferred_render_locations
           if multi_revenue?
-            [
-              {
-                region_weights: CENTER,
-                x: 0,
-                y: 0,
-              },
-              {
-                region_weights: TOP_MIDDLE_ROW,
-                x: 0,
-                y: -24,
-              },
-              {
-                region_weights: BOTTOM_MIDDLE_ROW,
-                x: 0,
-                y: 24,
-              },
-              {
-                region_weights: TOP_ROW,
-                x: 0,
-                y: -48,
-              },
-              {
-                region_weights: BOTTOM_ROW,
-                x: 0,
-                y: 48,
-              },
-            ]
+            if layout == :flat
+              FLAT_MULTI_REVENUE_LOCATIONS
+            else
+              POINTY_MULTI_REVENUE_LOCATIONS
+            end
+          elsif @cities == 6
+            SIX_CITY_CENTER_REVENUE
+          elsif layout == :flat
+            SMALL_ITEM_LOCATIONS
           else
-            [P_RIGHT_CORNER, P_LEFT_CORNER, P_BOTTOM_RIGHT_CORNER, P_UPPER_LEFT_CORNER, P_BOTTOM_LEFT_CORNER]
+            POINTY_SMALL_ITEM_LOCATIONS
           end
         end
 
         def load_from_tile
-          @slots = @tile.cities.map(&:slots).sum + @tile.towns.size
+          @slots = @tile.cities.sum(&:slots) + @tile.towns.size
           @cities = @tile.cities.size
           stops = @tile.stops
           @hide = stops.any?(&:hide)
-
+          @rows = (@tile.offboards&.first&.rows || 1)
           @revenue = @tile.revenue_to_render.first
         end
 
@@ -89,10 +90,10 @@ module View
         end
 
         def render_part
-          transform = "#{translate} #{rotation_for_layout}"
+          transform = "#{rotation_for_layout} #{translate}"
 
           if multi_revenue?
-            h(MultiRevenue, revenues: @revenue, transform: transform)
+            h(MultiRevenue, revenues: @revenue, transform: transform, rows: @rows)
           else
             h(SingleRevenue, revenue: @revenue, transform: transform)
           end

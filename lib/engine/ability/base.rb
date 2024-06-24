@@ -9,18 +9,29 @@ module Engine
       include Helper::Type
       include Ownable
 
-      attr_accessor :name, :display_value
-      attr_reader :type, :owner_type, :remove, :when, :count
+      attr_accessor :count_this_or, :description, :desc_detail
+      attr_reader :type, :owner_type, :remove, :when, :count, :count_per_or, :start_count, :passive,
+                  :on_phase, :after_phase, :use_across_ors
 
-      def initialize(type:, name: nil, owner_type: nil, count: nil, remove: nil, display_value: nil, **opts)
+      def initialize(type:, description: nil, desc_detail: nil, owner_type: nil, count: nil, remove: nil,
+                     use_across_ors: nil, count_per_or: nil, passive: nil, on_phase: nil, after_phase: nil,
+                     remove_when_used_up: nil, **opts)
         @type = type&.to_sym
-        @name = name&.to_s || @type
+        @description = description&.to_s
+        @desc_detail = desc_detail&.to_s
         @owner_type = owner_type&.to_sym
-        @when = opts.delete(:when)&.to_s
+        @when = Array(opts.delete(:when)).map(&:to_s)
+        @on_phase = on_phase
+        @after_phase = after_phase
         @count = count
+        @count_per_or = count_per_or
+        @count_this_or = 0
+        @use_across_ors = use_across_ors.nil? ? true : use_across_ors
         @used = false
-        @display_value = display_value&.to_s
         @remove = remove&.to_s
+        @start_count = @count
+        @passive = passive.nil? ? @when.empty? : passive
+        @remove_when_used_up = remove_when_used_up.nil? ? true : remove_when_used_up
 
         setup(**opts)
       end
@@ -29,17 +40,32 @@ module Engine
         @used
       end
 
-      def use!
+      def use!(**_kwargs)
         @used = true
+
+        @count_this_or += 1 if @count_per_or
+
         return unless @count
 
         @count -= 1
-        owner.remove_ability(self) unless @count.positive?
+        owner.remove_ability(self) if !@count.positive? && @remove_when_used_up
+      end
+
+      def use_up!
+        use! while @count.positive?
       end
 
       def setup(**_opts); end
 
       def teardown; end
+
+      def when?(*times)
+        !(@when & times).empty?
+      end
+
+      def add_count!(amount)
+        @count += amount
+      end
     end
   end
 end

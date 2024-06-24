@@ -6,6 +6,8 @@ module View
   module Game
     module Part
       class Blocker < Base
+        needs :game, default: nil, store: true
+
         # prefix these constant names with "P" (for "PART") to avoid conflicts
         # with constants in Part::Base
         P_CENTER = {
@@ -27,21 +29,52 @@ module View
           y: 60,
         }.freeze
 
+        PP_LEFT_CORNER = {
+          region_weights: LEFT_CORNER,
+          x: -65,
+          y: 5,
+        }.freeze
+        PP_BOTTOM_RIGHT = {
+          region_weights: [22, 23],
+          x: 35,
+          y: 60,
+        }.freeze
+        PP_EDGE_1 = {
+          region_weights_in: { [13] => 1, [12, 19] => 0.5 },
+          region_weights_out: [13],
+          x: -50,
+          y: 30,
+        }.freeze
+
+        PP_EDGE_4 = {
+          region_weights_in: { [10] => 1, [4, 11] => 0.5 },
+          region_weights_out: [10],
+          x: 50,
+          y: -30,
+        }.freeze
+
         def preferred_render_locations
-          if @tile.parts.one?
+          if @tile.parts.all?(&:border?) # are the only parts borders?
             [
               P_CENTER,
+            ]
+          elsif layout == :flat
+            [
+              P_LEFT_CORNER,
+              P_BOTTOM_RIGHT,
             ]
           else
             [
               P_LEFT_CORNER,
-              P_BOTTOM_RIGHT,
+              PP_BOTTOM_RIGHT,
+              PP_EDGE_4,
+              PP_EDGE_1,
             ]
           end
         end
 
         def load_from_tile
-          @blocker = @tile.blockers.first
+          @blocker = @tile.blockers.find { |b| !@tile.hidden_blockers.include?(b) }
         end
 
         def should_render?
@@ -49,7 +82,9 @@ module View
         end
 
         def should_render_company_sym?
-          blocker_open? && (!@blocker.owned_by_corporation? || @blocker.abilities(:tile_lay))
+          blocker_open? && (!@blocker.owned_by_corporation? ||
+                            @game.abilities(@blocker, :tile_lay, time: 'any') ||
+                            @game.abilities(@blocker, :teleport, time: 'any'))
         end
 
         def should_render_barbell?
@@ -61,13 +96,15 @@ module View
         end
 
         def render_company_sym
-          h(:text, { attrs: {
-                       fill: 'black',
-                       'dominant-baseline': 'baseline',
-                       x: 0,
-                       y: -5,
-                     } },
-            @blocker.sym)
+          h(:text, {
+              attrs: {
+                fill: 'black',
+                'dominant-baseline': 'baseline',
+                x: 0,
+                y: -5,
+              },
+            },
+            @blocker.company? ? @blocker.sym : @blocker.name)
         end
 
         def render_barbell

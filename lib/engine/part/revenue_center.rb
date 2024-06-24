@@ -5,7 +5,8 @@ require_relative 'node'
 module Engine
   module Part
     class RevenueCenter < Node
-      attr_reader :groups, :hide, :revenue, :revenue_to_render, :visit_cost, :route
+      attr_accessor :groups, :revenue
+      attr_reader :hide, :revenue_to_render, :visit_cost, :route, :loc, :rows
 
       PHASES = %i[yellow green brown gray diesel].freeze
 
@@ -14,7 +15,8 @@ module Engine
         @groups = (opts[:groups] || '').split('|')
         @hide = opts[:hide]
         @visit_cost = (opts[:visit_cost] || 1).to_i
-
+        @loc = opts[:loc]
+        @rows = (opts[:rows] || 1).to_i
         @route = (opts[:route] || :mandatory).to_sym
       end
 
@@ -22,11 +24,16 @@ module Engine
       def parse_revenue(revenue, format = nil)
         @revenue =
           if revenue.include?('|')
-            rev = revenue.split('|').map { |s| s.split('_') }.map { |c, r| [c.to_sym, r.to_i] }.to_h
+            # rubocop:disable Style/MapToHash
+            rev = revenue
+              .split('|')
+              .map { |s| s.split('_') }
+              .to_h { |c, r| [c.to_sym, r.to_i] }
+            # rubocop:enable Style/MapToHash
             @revenue_to_render = rev
             @revenue_to_render =
               if format
-                rev.map { |c, r| [c, format % r] }.to_h
+                rev.transform_values { |r| format % r }
               else
                 rev
               end
@@ -38,8 +45,9 @@ module Engine
               else
                 revenue.to_i
               end
-            self.class::PHASES.map { |phase| [phase, revenue.to_i] }.to_h
+            self.class::PHASES.to_h { |phase| [phase, revenue.to_i] }
           end
+        tile&.revenue_changed
         @revenue
       end
 
@@ -48,9 +56,28 @@ module Engine
       end
 
       def route_revenue(phase, train)
-        return @revenue[:diesel] if train.name.upcase == 'D' && @revenue[:diesel]
+        revenue_multiplier(train) * route_base_revenue(phase, train)
+      end
 
-        phase.tiles.reverse.each { |color| return @revenue[color] if @revenue[color] }
+      def route_base_revenue(phase, train)
+        return (@revenue[:diesel]) if train.name.upcase == 'D' && @revenue[:diesel]
+
+        phase.tiles.reverse_each { |color| return (@revenue[color]) if @revenue[color] }
+        0
+      end
+
+      def revenue_multiplier(train)
+        distance = train.distance
+        base_multiplier = train.multiplier || 1
+
+        return base_multiplier if distance.is_a?(Numeric)
+
+        row = distance.index do |h|
+          h['nodes'].include?(type)
+        end
+        return base_multiplier unless row
+
+        distance[row].fetch('multiplier', base_multiplier)
       end
 
       def uniq_revenues

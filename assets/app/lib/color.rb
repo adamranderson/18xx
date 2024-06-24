@@ -2,9 +2,14 @@
 
 module Lib
   module Color
-    def self.convert_hex_to_rgba(color, alpha)
+    def convert_hex_to_rgba(color, alpha)
       m = color.match(/#(..)(..)(..)/)
       "rgba(#{m[1].hex},#{m[2].hex},#{m[3].hex},#{alpha})"
+    end
+
+    def convert_rgba_to_hex(color)
+      m = color.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*(\d(\.\d)?)/)
+      "##{(1..3).map { |e| format('%02x', (m[e].to_i * m[5].to_f)) }.join}"
     end
 
     # helper functions to calc contrasting bg, font and logo colors
@@ -14,7 +19,7 @@ module Lib
       red = m[1].to_i(16)
       green = m[2].to_i(16)
       blue = m[3].to_i(16)
-      Math.sqrt((0.299 * red)**2 + (0.587 * green)**2 + (0.114 * blue)**2) / 1000
+      Math.sqrt(((0.299 * red)**2) + ((0.587 * green)**2) + ((0.114 * blue)**2)) / 1000
     end
 
     # https://www.w3.org/TR/2008/REC-WCAG20-20081211/#contrast-ratiodef

@@ -2,11 +2,9 @@
 
 require './spec/spec_helper'
 
-require 'engine'
-
 module Engine
   describe Hex do
-    let(:game) { GAMES_BY_TITLE['1889'].new(%w[a b]) }
+    let(:game) { Engine.game_by_title('1889').new(%w[a b]) }
     subject { game.hex_by_id('H7') }
 
     describe '#neighbor_direction' do
@@ -179,7 +177,7 @@ module Engine
           },
         ].each do |spec|
           context "#{spec[:game]} #{spec[:desc]}" do
-            let(:game) { GAMES_BY_TITLE[spec[:game]].new(%w[a b c]) }
+            let(:game) { Engine.game_by_title(spec[:game]).new(%w[a b c]) }
             let(:hex) { game.hex_by_id(spec[:setup][:hex]) }
             let(:initial_tile) do
               tile_name, rotation = spec[:setup][:tile]
@@ -246,24 +244,29 @@ module Engine
         {
           '1846' => [
             {
-              hex: 'D6',
-              initial_icons: %w[meat],
-              lays: [{ tile: '298', rotation: 0, icons: %w[meat] },
-                     { tile: '299', rotation: 0, icons: %w[meat] },
-                     { tile: '300', rotation: 0, icons: %w[meat] }],
+              hex: 'F22',
+              initial_icons: %w[20],
+              lays: [],
             },
             {
-              hex: 'D14',
-              initial_icons: %w[port lsl],
-              lays: [{ tile: '5', rotation: 1, icons: %w[port lsl] },
-                     { tile: '14', rotation: 1, icons: %w[port lsl] },
-                     { tile: '611', rotation: 5, icons: %w[port lsl] },
-                     { tile: '51', rotation: 5, icons: %w[port lsl] }],
+              hex: 'D22',
+              initial_icons: %w[30],
+              lays: [],
             },
             {
-              hex: 'G19',
-              initial_icons: %w[port port],
-              lays: [{ tile: '14', rotation: 1, icons: %w[port port] }],
+              hex: 'C17',
+              initial_icons: %w[30],
+              lays: [],
+            },
+            {
+              hex: 'C21',
+              initial_icons: %w[30],
+              lays: [],
+            },
+            {
+              hex: 'B18',
+              initial_icons: %w[20],
+              lays: [],
             },
             {
               hex: 'J4',
@@ -292,8 +295,8 @@ module Engine
             },
           ],
         }.each do |game_title, specs|
-          game_class = GAMES_BY_TITLE[game_title]
-          players = Engine.player_range(game_class).max.times.map { |n| "Player #{n + 1}" }
+          game_class = Engine.game_by_title(game_title)
+          players = Array.new(game_class::PLAYER_RANGE.max) { |n| "Player #{n + 1}" }
           game = game_class.new(players)
           specs.each do |spec|
             context "hex #{spec[:hex]} in #{game_title}" do
@@ -305,7 +308,7 @@ module Engine
 
               spec[:lays].each do |lay|
                 it "has #{lay[:icons]} after laying tile \"#{lay[:tile]}\"" do
-                  tile = lay[:tile] == 'original' ? hex.original_tile : Tile.for(lay[:tile])
+                  tile = lay[:tile] == 'original' ? hex.original_tile : game.tiles.find { |t| t.name == lay[:tile] }
                   tile.rotate!(lay[:rotation])
 
                   hex.lay(tile)

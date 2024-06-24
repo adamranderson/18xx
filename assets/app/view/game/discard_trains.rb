@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'view/game/actionable'
-require 'view/game/undo_and_pass'
 
 module View
   module Game
@@ -12,17 +11,18 @@ module View
         block_props = {
           style: {
             display: 'inline-block',
-            'vertical-align': 'top',
+            verticalAlign: 'top',
           },
         }
-        overflow = @game.active_step.crowded_corps.map do |corporation|
-          trains = corporation.trains.map do |train|
+        step = @game.active_step
+        overflow = step.crowded_corps.map do |corporation|
+          trains = step.trains(corporation).map do |train|
             train_props = {
               style: {
                 display: 'inline-block',
                 cursor: 'pointer',
                 border: 'solid 1px gainsboro',
-                'padding': '0.5rem',
+                padding: '0.5rem',
               },
               on: { click: -> { process_action(Engine::Action::DiscardTrain.new(corporation, train: train)) } },
             }
@@ -35,10 +35,12 @@ module View
             h(:div, trains),
           ])
         end
+        overflow << h(ScrapTrains, corporation: @current_entity) if @game.round.actions_for(step.current_entity)
+            &.include?('scrap_train')
+        overflow << h(Map, game: @game) if @game.round.is_a?(Engine::Round::Operating)
 
         h(:div, [
-          h(:div, { style: { 'margin-bottom': '1rem', 'font-weight': 'bold' } }, 'Discard Trains'),
-          h(UndoAndPass, pass: false),
+          h(:h3, 'Discard Trains'),
           *overflow,
         ])
       end

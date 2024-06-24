@@ -5,13 +5,14 @@ Some app routes that may be of interest to developers:
 * `/map/<game_title>` - renders the given game's map
 * `/tiles/all` - renders all of the track tiles (and generic map hex "tiles")
   defined in `lib/engine/tile.rb`
-* `/tiles/<game_title>` - renders all of the track tiles (and map hex "tiles")
-  for the given game. Multiple game titles can be given, separated by `+`.
 * `/tiles/<tile_name>` - renders a single tile at large scale (tile must be
   defined in `lib/engine/tile.rb`)
 * `/tiles/<game_title>/<hex_coord_or_tile_name>` - renders a single hex or tile
   the given game at large scale. Multiple hex coords or tile names can be given,
   separated by `+`.
+* `/tiles/<game_titles>/all` - renders all of the track tiles (and map hex
+  "tiles") for the given games (multiple game titles can be given, separated by
+  `+`). The game titles are fuzzy matched.
 
 Optional URL params for above routes:
 
@@ -33,6 +34,12 @@ Optional URL params for above routes:
 
 
 ![Anatomy of a Tile](/public/images/tile_anatomy_pointy.png?raw=true "Anatomy of a Pointy Tile")
+
+### Illustrations of Lanes
+
+![Illustration of Lanes 1](/public/images/lane_widths.png?raw=true "Examples of lane widths")
+
+![Illustration of Lanes 2](/public/images/lanes_small.png?raw=true "Examples of lane connections")
 
 ### Tile language
 
@@ -59,16 +66,25 @@ game config/code:
       be integer to indicate edge number, or an underscore followed by an
       integer to refer by index to a city/town/offboard/junction defined earlier
       on the tile
-    - **track** - broad/narrow/dual/line/dashed; this option is not yet
-      implemented, so track is always broad
+    - **terminal** - `1` - indicates that path is part of a non-passthru path, typically for off-board cities. Tapered track will be drawn.  If a `2` is used instead, the tapered track will be drawn much shorter.
+    - **ignore** - `1` - indicates that path should be ignored when node walk is trying to map available paths and hexes.
+    - **a\_lane** - integer.integer - first integer specifies the lane width for the **a** path endpoint, the second integer specifies the lane index, or position within the lane. 0 is the most clockwise position.
+    - **b\_lane** - integer.integer - first integer specifies the lane width for the **b** path endpoint, the second integer specifies the lane index, or position within the lane. 0 is the most clockwise position.
+    - **lanes** - integer - number of parallel paths. Creates multiple copies of this path with **a\_lane** and **b\_lane** for each path generated automatically and set rationally.
+    - **track** - `broad/narrow/dual` - used for display and connectivity. Defaults to `broad`.
 - **label** - large letter(s) on tile (e.g., "Chi", "OO", or "Z")
 - **upgrade**
     - **cost** - *required* - integer
     - **terrain** - `mountain`/`water` - multiple terrain types separated by `|`
+    - **loc** - (currently only supported for `:pointy` layouts) corner to
+      render the upgrade in, `5.5` to be where edges `5` and `0` meet, `0.5` for
+      edges `0` and `1`, and so on
 - **border**
-    - **edge** - integer - which edge to hide from rendering; a line matching
-      the tile's color is drawn on top of the edge's normal black line so that
-      two adjacent tiles appear joined
+    - **edge** - *required* - integer - which edge to modify
+    - **type** - `mountain`/`water`/`impassable` - Border type. If not'
+      specified, a line matching the tile's color is drawn on top of the edge's
+      normal black line so that two adjacent tiles appear joined.
+    - **cost** - integer - cost to cross for mountain/water borders
 - **junction** - the center point of a Lawson-style tile
 - **icon**
     - **image** - *required* - name of image, will be rendered with file at
@@ -77,7 +93,13 @@ game config/code:
     - **sticky** - `1` indicates the icon should remain visible when a tile
       upgrade is placed on this hex
     - **blocks_lay** - indicates this tile cannot be laid normally
-  but can only be laid by special ability, such as a private company's ability.
+      but can only be laid by special ability, such as a private company's ability.
+    - **loc** - (currently only supported for `:pointy` layouts) corner to
+      render the upgrade in, `5.5` to be where edges `5` and `0` meet, `0.5` for
+      edges `0` and `1`, and so on
+- **frame**
+    - **color** - *required* - the color of the frame
+    - **color2** - A second color to display on the frame
 
 #### Town/City/Offboard sub parts
 
@@ -90,6 +112,24 @@ Towns, cities, and offboards have a few "sub parts" in common:
 - **groups** - strings separated by `|`; routes cannot contain more than one
   revenue center from a group, e.g., "East" is a group in 1846 as routes cannot run E-E
 - **hide** - `1` indicates that the revenue for this revenue center should not be rendered
+
+##### Towns
+
+- **style**
+    - `rect` (rectangle) - default when 1 or 2 paths connect to the town
+    - `dot` - default when 0 or 3+ paths connect to the town
+    - `hidden` - don't show at all, useful for special offboards that count as
+      towns instead of cities; construct with a hidden town and `terminal` paths
+
+#### Lanes
+
+Lanes are used to specify paths for tiles that have double-track, treble-track and quad-track. Every
+path endpoint (**a** and **b**) has two lane attributes associated with it: *width* and *index*. The
+*width* specifies the number of tracks that connect to a given edge. The *index* specifies the position
+of that particular path within those tracks. Typically, only the **lanes** sub part for a path needs to
+be given. That will automatically create n "parallel" paths between the edges or nodes specified on
+the **path**. The only time **a\_lane** or **b\_lane** need to be given is if the endpoints need to be
+connected in an unusual way (for instance going from a double-track edge to a single-track edge).
 
 #### Examples
 
@@ -140,3 +180,21 @@ Towns, cities, and offboards have a few "sub parts" in common:
 `town=revenue:0;town=revenue:0`
 
 ![18Chesapeake K3](/public/images/tile_18Chesapeake_K3.png?raw=true "18Chesapeake K3")
+
+* 18MEX - Upgrade for Mexico City
+
+`city=revenue:60,slots:3,loc:center;town=revenue:10,loc:2;path=a:0,b:_0;path=a:1,b:_0;path=a:3,b:_0;path=a:2,b:_1;path=a:5,b:_0,lanes:2;path=a:_1,b:_0;label=MC`
+
+![18MEX 485MC](/public/images/tile_18MEX_485MC.png?raw=true "18MEX 485MC")
+
+* 18MEX - Upgrade for Puebla
+
+`town=revenue:10;path=a:2,b:_0,a_lane:2.1;path=a:5,b:_0;path=a:2,b:4,a_lane:2.0;label=P`
+
+![18MEX 485P](/public/images/tile_18MEX_485P.png?raw=true "18MEX 485P")
+
+* 1831 - tile 301c (title not implemented)
+
+`path=a:0,b:3,lanes:3`
+
+![1831 301c](/public/images/tile_1831_301c.png?raw=true "1831 301c")

@@ -1,8 +1,13 @@
 # frozen_string_literal: true
 
+# backtick_javascript: true
+
 require 'lib/storage'
+require_relative 'game_class_loader'
 
 module GameManager
+  include GameClassLoader
+
   def self.included(base)
     base.needs :game, default: nil, store: true
     base.needs :game_data, default: nil, store: true
@@ -10,6 +15,7 @@ module GameManager
     base.needs :app_route, default: nil, store: true
     base.needs :connection, default: nil, store: true
     base.needs :flash_opts, default: {}, store: true
+    base.needs :game_classes_loaded, default: {}, store: true
   end
 
   def create_hotseat(**opts)
@@ -40,11 +46,24 @@ module GameManager
     end
   end
 
+  def enter_fixture(path)
+    @connection.get("/fixtures/#{path}.json", '') do |data|
+      store(:game_data, data, skip: false)
+    end
+  end
+
   def get_games(params = nil)
     params ||= `window.location.search`
 
-    @connection.safe_get("/game#{params}") do |data|
-      store(:games, data[:games])
+    @connection.get("/game#{params}") do |data|
+      store(:games, data[:games]) unless data[:error]
+    end
+  end
+
+  def get_game(id)
+    @connection.safe_get("/game/#{id}") do |data|
+      data[:loaded] = @game_data[:loaded] if @game_data
+      update_game(data)
     end
   end
 
@@ -95,6 +114,10 @@ module GameManager
         return store(:app_route, '/')
       end
 
+      title = game_data['title']
+      load_game_class(title, -> { enter_game(game) })
+      return unless @game_classes_loaded[title]
+
       if game[:pin]
         game_data[:settings] ||= {}
         game_data[:settings][:pin] = game[:pin]
@@ -104,11 +127,16 @@ module GameManager
       store(:game_data, game_data.merge(loaded: true), skip: true)
       store(:app_route, hs_url(game, game_data)) unless @app_route.include?(hs_url(game, game_data))
       return
+    elsif game
+      title = game['title']
+      load_game_class(title, -> { enter_game(game) })
+      return unless @game_classes_loaded[title]
     end
 
     game_url = url(game)
     store(:game_data, game.merge(loading: true), skip: true)
-    store(:app_route, game_url + `window.location.search`)
+    route = game_url + `window.location.search` + `window.location.hash`
+    store(:app_route, route, skip: @app_route == route)
 
     @connection.safe_get(game_url) do |data|
       next `window.location = #{game_url}` if data.dig('settings', 'pin')
@@ -136,8 +164,12 @@ module GameManager
     game['status'] == 'active' && game['acting'].include?(user&.dig('id'))
   end
 
+  def self.url(game, path = '')
+    "/#{game[:mode] == :hotseat ? 'hotseat' : 'game'}/#{game['id']}#{path}"
+  end
+
   def url(game, path = '')
-    "/game/#{game['id']}#{path}"
+    GameManager.url(game, path)
   end
 
   protected
@@ -156,6 +188,7 @@ module GameManager
     @games += [game] if @games.none? { |g| g['id'] == game['id'] }
     @games.reject! { |g| g['id'] == game['id'] } if game['deleted']
     @games.map! { |g| g['id'] == game['id'] ? game : g }
+    store(:game_data, game, skip: true) if @game_data&.dig('id') == game['id']
     store(:games, @games.sort_by { |g| g['id'] }.reverse)
   end
 end

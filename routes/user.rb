@@ -17,9 +17,15 @@ class Api
         # POST '/api/user/'
         r.is do
           params = {
-            name: r['name'],
+            name: r['name']&.strip,
             email: r['email'],
             password: r['password'],
+            settings: {
+              notifications: r['notifications'],
+              webhook: r['webhook'],
+              webhook_url: r['webhook_url'],
+              webhook_user_id: r['webhook_user_id'],
+            },
           }.reject { |_, v| v.empty? }
 
           login_user(User.create(params))
@@ -64,31 +70,53 @@ class Api
         r.post 'edit' do
           user.update_settings(r.params)
           user.save
+          MessageBus.publish('/test_notification', user.id) if r['test_webhook_notification']
           user.to_h(for_user: true)
         end
 
         # POST '/api/user/logout'
         r.post 'logout' do
           session.destroy
-
-          { games: Game.home_games(nil, **r.params).map(&:to_h) }
+          clear_cookies!
+          { games: Game.home_games(nil, **r.params) }
         end
 
-        # POST '/api/user/refresh'
-        r.is 'refresh' do
-          login_user(user, new_session: false)
+        # POST '/api/user/login'
+        r.is 'delete' do
+          MessageBus.publish('/delete_user', user.id)
+          clear_cookies!
+          {}
         end
       end
     end
   end
 
-  def login_user(user, new_session: true)
-    token = (new_session ? Session.create(token: SecureRandom.hex, user: user) : session).token
+  def clear_cookies!
+    request.response.set_cookie(
+      'auth_token',
+      value: nil,
+      expires: Date.today - 1000,
+      domain: nil,
+      path: '/',
+    )
+  end
+
+  def login_user(user)
+    token = Session.create(token: SecureRandom.hex, user: user, ip: request.ip).token
+
+    request.response.set_cookie(
+      'auth_token',
+      value: token,
+      expires: Date.today + Session::EXPIRE_TIME,
+      domain: nil,
+      httponly: true,
+      secure: PRODUCTION,
+      path: '/',
+    )
 
     {
-      auth_token: token,
       user: user.to_h(for_user: true),
-      games: Game.home_games(user, **request.params).map(&:to_h),
+      games: Game.home_games(user, **request.params),
     }
   end
 end

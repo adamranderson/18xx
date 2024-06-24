@@ -1,13 +1,14 @@
 # frozen_string_literal: true
 
+require 'lib/publisher'
+
 module View
   class Welcome < Snabberb::Component
     needs :app_route, default: nil, store: true
-    needs :show_intro, default: true
 
     def render
       children = [render_notification]
-      children << render_introduction if @show_intro
+      children << render_introduction
       children << render_buttons
 
       h('div#welcome.half', children)
@@ -15,28 +16,11 @@ module View
 
     def render_notification
       message = <<~MESSAGE
-        <p>We've rewritten the engine so there may be some bugs.</p>
-        <p>1836Jr30 is now available for beta.</p>
-        <p>1846 is now available for alpha.</p>
+        <p><a href="https://github.com/tobymao/18xx/wiki/18neb">18Neb</a>, <a href="https://github.com/tobymao/18xx/wiki/1844">1844</a>, and <a href="https://github.com/tobymao/18xx/wiki/1847-AE">1847 AE</a> are in production.</p>
 
-        <p>Please file issues <a href='https://github.com/tobymao/18xx/issues'>here</a>. And if you have any questions, check out the
-        <a href='https://docs.google.com/document/d/1nCYnzNMQLrFLZtWdbjfuSx5aIcaOyi27lMYkJxcGayw/edit'>FAQ!</a>
-        </p>
+        <p><a href="https://github.com/tobymao/18xx/wiki/18RoyalGorge">18RoyalGorge</a> and <a href="https://github.com/tobymao/18xx/wiki/18Hiawatha">18Hiawatha</a> are in alpha</a>.</p>
 
-        <p>If you're looking to buy these games, please check out
-        <a href='https://all-aboardgames.com'>All-Aboard Games</a>,
-        <a href='https://www.grandtrunkgames.com'>Grand Trunk Games</a>,
-        and <a href='https://www.gmtgames.com/'>GMT Games</a>.
-        </p>
-
-        <p>You can support this project on <a href='https://www.patreon.com/18xxgames'>Patreon</a>.
-        </p>
-
-        <p>Consider joining the
-        <a href='https://join.slack.com/t/18xxgames/shared_invite/zt-8ksy028m-CSZC~G5QtiFv60_jdqqulQ'>18xx slack</a>.
-        General 18xx.games discussion is in #18xxgames, development discussion is in #18xxgamesdev (you can ask about
-        bugs there), and general 18xx chat in #general.
-        </p>
+        <p>Report bugs and make feature requests <a href='https://github.com/tobymao/18xx/issues'>on GitHub</a>.</p>
       MESSAGE
 
       props = {
@@ -55,20 +39,21 @@ module View
 
     def render_introduction
       message = <<~MESSAGE
-        <p>18xx.games is a website where you can play async or real-time 18xx games (based on the system originally devised by the brilliant Francis Tresham)! Right now only 1889 and 18Chesapeake are implemented
-        but I'm planning on doing many more in the future.</p>
-
-        <p>You can play locally with hot seat mode without an account. If you want to play multiplayer, you'll need to create an account.</p>
-
-        <p>If you look at other people's games, you can make moves to play around but it won't affect them and changes won't be saved.
-        You can clone games in the tools tab and then play around locally.</p>
-
-        <p>In multiplayer games, you'll also be able to make moves for other players, this is so people can say 'pass me this SR' and you don't
-        need to wait. To use this feature in a game, enable "Master Mode" in the Tools tab. Please use it politely!</p>
+        <p>Check out the <a href='https://github.com/tobymao/18xx/wiki/FAQ'>FAQ</a>, <a href='https://github.com/tobymao/18xx/wiki/Power-User-Features'>keyboard shortcuts</a> and <a href='https://github.com/tobymao/18xx/wiki'>the Wiki</a></p>
+        <p>Find games in the chat or <a href='https://github.com/tobymao/18xx/wiki/18xx-Online-Communities%2C-Media%2C-and-Resources#community'>on (unofficial) Discord servers</a></p>
+        <p><a href='https://github.com/tobymao/18xx/wiki/Notifications'>Turn notifications</a> can be enabled via <a href='https://github.com/tobymao/18xx/wiki/Notifications#discord-notifications'>Discord</a>, <a href='https://github.com/tobymao/18xx/wiki/Notifications#slack-notifications'>Slack</a>, or <a href='https://github.com/tobymao/18xx/wiki/Notifications#telegram-notifications'>Telegram</a></p>
+        <p>Ask any questions about the site in <code>#18xxgames</code> <a href='https://18xxgames.slack.com/join/shared_invite/zt-2evbzlz86-fSip9Zr9W~OSQW_EbP4DGw#/shared-invite/email'>on the 18XX Slack</a></p>
+        <p>Buy physical copies of 18XX games from publishers:</br> #{Lib::Publisher.link_list.join}.</p>
+        <p>Keep the servers running by becoming a member <a href='https://www.patreon.com/18xxgames'>on Patreon</a></p>
       MESSAGE
 
       props = {
-        props: { innerHTML: message },
+        style: {
+          marginBottom: '1rem',
+        },
+        props: {
+          innerHTML: message,
+        },
       }
 
       h('div#introduction', props)
@@ -94,8 +79,8 @@ module View
       }
 
       h('div#buttons', props, [
-        h('button.button', create_props, 'CREATE A NEW GAME'),
-        h('button.button', tutorial_props, 'TUTORIAL'),
+        h(:button, create_props, 'CREATE A NEW GAME'),
+        h(:button, tutorial_props, 'TUTORIAL'),
       ])
     end
   end

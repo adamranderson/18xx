@@ -1,4 +1,4 @@
-/.env.rb
+/.env*
 /.yardoc
 /_yardoc/
 /coverage/
@@ -23,3 +23,14 @@
 /db/data/
 
 docker-compose.override.yml
+
+.ruby-version
+
+db.backup*
+validate*.json
+.pgpass
+
+# RubyMine configfiles
+.idea
+
+.vscode

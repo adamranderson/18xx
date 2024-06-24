@@ -1,8 +1,15 @@
-FROM ruby:2.7.1-buster
+FROM ruby:3.2
 
 ARG RACK_ENV
 RUN mkdir /18xx
 WORKDIR /18xx
+RUN git config --global --add safe.directory /18xx
+
+RUN if [ "$RACK_ENV" = "development" ]; \
+    then \
+      curl -s https://registry.npmjs.org/esbuild-linux-64/-/esbuild-linux-64-0.14.36.tgz | tar xz; \
+      mv package/bin/esbuild /usr/local/bin && rm -rf package; \
+    fi;
 
 COPY Gemfile Gemfile.lock ./
 RUN if [ "$RACK_ENV" = "production" ]; \

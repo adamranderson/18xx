@@ -5,14 +5,25 @@ require_relative '../helper/type'
 module Engine
   module Action
     class Base
+      include Comparable
       include Helper::Type
 
       attr_reader :entity
-      attr_accessor :id
+      attr_accessor :id, :user, :created_at, :auto_actions
 
       def self.from_h(h, game)
-        entity = game.get(h['entity_type'], h['entity'])
-        new(entity, **h_to_args(h, game))
+        entity = game.get(h['entity_type'], h['entity']) || Player.new(nil, h['entity'])
+        obj = new(entity, **h_to_args(h, game))
+        obj.user = h['user'] if entity.player && h['user'] != entity.player&.id
+        obj.created_at = h['created_at'] || Time.now
+        obj.auto_actions = (h['auto_actions'] || []).map { |auto_h| Base.action_from_h(auto_h, game) }
+        obj
+      end
+
+      def self.action_from_h(h, game)
+        Object
+        .const_get("Engine::Action::#{Action::Base.type(h['type'])}")
+        .from_h(h, game)
       end
 
       def self.h_to_args(_h, _game)
@@ -25,18 +36,27 @@ module Engine
 
       def initialize(entity)
         @entity = entity
+        @created_at = Time.now
+        @auto_actions = []
       end
 
       def [](field)
         to_h[field]
       end
 
+      def clear_cache
+        @_h = nil
+      end
+
       def to_h
-        {
+        @_h ||= {
           'type' => type,
           'entity' => entity.id,
           'entity_type' => type_s(entity),
           'id' => @id,
+          'user' => @user,
+          'created_at' => @created_at.to_i,
+          'auto_actions' => @auto_actions.empty? ? nil : @auto_actions.map(&:to_h),
           **args_to_h,
         }.reject { |_, v| v.nil? }
       end
@@ -55,6 +75,11 @@ module Engine
 
       def free?
         false
+      end
+
+      def <=>(other)
+        # some actions are generated internally and don't have an id, fall back to timestamp.
+        id && other.id ? (id <=> other.id) : (Time.at(created_at) <=> Time.at(other.created_at))
       end
     end
   end

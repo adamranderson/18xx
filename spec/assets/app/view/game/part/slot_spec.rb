@@ -27,7 +27,7 @@ module View
                                          city: nil,
                                          radius: radius,
                                          connection: double,
-                                         num_cities: 1,
+                                         edge: nil,
                                          region_use: {})
               allow(slot).to receive_messages(h: '')
 
@@ -35,7 +35,7 @@ module View
               slot.render
 
               # assert
-              expect(slot).to have_received(:h).with(Token, token: token, radius: radius)
+              expect(slot).to have_received(:h).with(Token, token: token, radius: radius, game: nil)
             end
           end
 
@@ -48,7 +48,7 @@ module View
                                          city: nil,
                                          radius: 0,
                                          connection: double,
-                                         num_cities: 1,
+                                         edge: nil,
                                          region_use: {})
               allow(slot).to receive_messages(h: '')
 

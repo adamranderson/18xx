@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
+require 'lib/settings'
+
 module View
   class Logo < Snabberb::Component
+    include Lib::Settings
+
     needs :user, default: nil, store: true
 
     def render
@@ -16,11 +20,11 @@ module View
         attrs: { href: '/', title: '18xx.Games' },
         style: {
           color: 'currentColor',
-          'font-weight': 'bold',
-          'text-decoration': 'none',
+          fontWeight: 'bold',
+          textDecoration: 'none',
         },
       }
-      logo_color = @user&.dig(:settings, :red_logo) ? 'red' : 'yellow'
+      logo_color = setting_for(:red_logo) ? 'red' : 'yellow'
       logo_props = {
         style: {
           display: 'inline-block',
@@ -29,7 +33,7 @@ module View
           lineHeight: '3rem',
           background: "url(/images/logo_polygon_#{logo_color}.svg) left/2.5rem no-repeat",
           color: logo_color == 'red' ? '#ffffff' : '#000000',
-          'text-align': 'center',
+          textAlign: 'center',
         },
       }
 

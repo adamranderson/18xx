@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative 'base'
-require_relative 'legacy'
 require_relative '../action/buy_shares'
 require_relative '../action/par'
 require_relative '../action/sell_shares'
@@ -11,7 +10,11 @@ module Engine
   module Round
     class Stock < Base
       def select_entities
-        @game.players
+        @game.players.reject(&:bankrupt)
+      end
+
+      def self.short_name
+        'SR'
       end
 
       def name
@@ -19,7 +22,8 @@ module Engine
       end
 
       def setup
-        start_entity
+        skip_steps
+        next_entity! unless active_step
       end
 
       def after_process(_action)
@@ -53,30 +57,54 @@ module Engine
         @game.finished || @entities.all?(&:passed?)
       end
 
-      private
+      def stock?
+        true
+      end
+
+      def show_auto?
+        true
+      end
+
+      protected
 
       def finish_round
-        @game.corporations.select(&:floated?).sort.each do |corp|
-          prev = corp.share_price.price
+        corporations_to_move_price.sort.each do |corp|
+          next unless corp.share_price
 
-          @game.stock_market.move_up(corp) if sold_out?(corp)
+          old_price = corp.share_price
+
+          sold_out_stock_movement(corp) if sold_out?(corp) && @game.sold_out_increase?(corp)
+
           pool_share_drop = @game.class::POOL_SHARE_DROP
-          price_drops =
-            if (pool_share_drop == :none) || (shares_in_pool = corp.num_market_shares).zero?
-              0
-            elsif pool_share_drop == :one
-              1
-            else
-              shares_in_pool
+          if pool_share_drop != :none && corp.num_market_shares.positive?
+            case pool_share_drop
+            when :down_block
+              @game.stock_market.move_down(corp)
+            when :down_share
+              corp.num_market_shares.times { @game.stock_market.move_down(corp) }
+            when :left_block
+              @game.stock_market.move_left(corp)
             end
-          price_drops.times { @game.stock_market.move_down(corp) }
+          end
 
-          @game.log_share_price(corp, prev)
+          @game.log_share_price(corp, old_price)
         end
       end
 
+      def corporations_to_move_price
+        @game.corporations.select { |c| c.floated? && c.type != :minor }
+      end
+
+      def sold_out_stock_movement(corp)
+        @game.stock_market.move_up(corp)
+      end
+
       def sold_out?(corporation)
-        corporation.share_holders.values.sum == 100
+        corporation.player_share_holders.values.sum == 100
+      end
+
+      def inspect
+        "<#{self.class.name} Round #{@game.turn}>"
       end
     end
   end

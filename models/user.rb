@@ -1,25 +1,39 @@
 # frozen_string_literal: true
 
 require_relative 'base'
+require_relative '../assets/app/lib/settings'
 require 'argon2'
+require 'uri'
 
 class User < Base
   one_to_many :games
   one_to_many :session
   one_to_many :game_users
 
-  RESET_WINDOW = 60 * 15 # 15 minutes
+  RESET_WINDOW = 60 * 30 # 30 minutes
 
-  SETTINGS = %w[
-    notifications bg font bg2 font2 red_logo white yellow green brown gray red blue
-  ].freeze
+  SETTINGS = (Lib::Settings::ROUTE_COLORS.size.times.flat_map do |index|
+    %w[color dash width].map do |prop|
+      "r#{index}_#{prop}"
+    end
+  end + %w[
+    consent notifications webhook webhook_url webhook_user_id red_logo bg font bg2 font2 your_turn hotseat_game
+    white yellow green brown gray red blue purple
+    path_timeout route_timeout show_stats
+  ]).freeze
 
   def update_settings(params)
-    SETTINGS.each { |setting| settings[setting] = params[setting] }
+    self.name = params['name'] if params['name']
+    self.email = params['email'] if params['email']
+    params.each do |key, value|
+      settings[key] = value if SETTINGS.include?(key)
+    end
+
+    settings.delete('webhook_url') if settings['webhook'] != 'custom'
   end
 
   def self.by_email(email)
-    self[Sequel.function(:lower, :email) => email.downcase]
+    self[Sequel.function(:lower, :email) => email.downcase] || self[Sequel.function(:lower, :name) => email.downcase]
   end
 
   def reset_hashes
@@ -45,7 +59,7 @@ class User < Base
 
     if for_user
       h[:email] = email
-      h[:settings] = settings
+      h[:settings] = settings.to_h
     end
 
     h
@@ -53,5 +67,20 @@ class User < Base
 
   def inspect
     "#{self.class.name} - id: #{id} name: #{name}"
+  end
+
+  def validate
+    super
+    validates_unique(:name, :email, { message: 'is already registered' })
+    validates_format(/^.+$/, :name, message: 'may not be empty')
+    validates_format(/^[^\s].*$/, :name, message: 'may not start with a whitespace')
+    validates_format(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, :email)
+
+    if settings['webhook'] && (
+        (settings['webhook_user_id']&.strip || '') == '' ||
+        settings['webhook_user_id']&.include?(' ')
+      )
+      errors.add(:webhook_user_id, 'spaces are not allowed in the user id. look at the wiki for more info')
+    end
   end
 end

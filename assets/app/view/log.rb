@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
 require 'lib/settings'
+require 'lib/profile_link'
 
 module View
   class Log < Snabberb::Component
     include Lib::Settings
+    include Lib::ProfileLink
 
     needs :log
     needs :negative_pad, default: false
@@ -35,9 +37,10 @@ module View
         style: {
           overflow: 'auto',
           padding: '0.5rem',
-          'background-color': color_for(:bg2),
+          backgroundColor: color_for(:bg2),
           color: color_for(:font2),
-          'word-break': 'break-word',
+          wordBreak: 'break-word',
+          cursor: 'text',
         },
       }
 
@@ -45,18 +48,62 @@ module View
         props[:style][:padding] = '0.5rem 2vmin'
         props[:style][:margin] = '0 -2vmin'
       else
-        props[:style]['box-sizing'] = 'border-box'
+        props[:style][:boxSizing] = 'border-box'
       end
 
-      lines = @log.map do |line|
-        if line.is_a?(String)
-          h(:div, line)
-        elsif line.is_a?(Engine::Action::Message)
-          h(:div, { style: { 'font-weight': 'bold' } }, "#{line.entity.name}: #{line.message}")
+      h('div#chatlog', props, chat_log(@log))
+    end
+
+    def chat_log(log)
+      return unless log[0]
+
+      prev_username = log[0][:user][:name]
+      line_props = {
+        style: {
+          marginTop: '0.2rem',
+          paddingLeft: '3.8rem',
+          textIndent: '-3.7rem',
+        },
+      }
+      timestamp_props = {
+        style: {
+          margin: '0 0.2rem 0 0',
+          fontSize: 'smaller',
+        },
+        class: { hidden: false },
+      }
+      username_props = {
+        style: {
+          margin: '0 0.2rem',
+          fontWeight: 'bold',
+        },
+      }
+      message_props = { style: { margin: '0 0.2rem' } }
+
+      log.map.with_index do |line, i|
+        if i.positive?
+          username = line[:user][:name]
+          if username == prev_username
+            line_props[:style][:marginTop] = '0'
+            timestamp_props[:class][:hidden] = true
+            username_props[:style][:display] = 'none'
+          else
+            line_props[:style][:marginTop] = '0.2rem'
+            timestamp_props[:class][:hidden] = false
+            username_props[:style][:display] = ''
+            prev_username = username
+          end
         end
-      end
 
-      h('div#chatlog', props, lines)
+        time = Time.at(line[:created_at])
+        timestamp = time.strftime(time + 86_400 < Time.now ? '%F %T' : '%T')
+
+        h('div.chatline', line_props, [
+          h('span.timestamp', timestamp_props, timestamp),
+          h('span.username', username_props, [profile_link(line[:user][:id], line[:user][:name])]),
+          h('span.message', message_props, line[:message]),
+        ])
+      end
     end
   end
 end

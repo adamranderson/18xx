@@ -9,6 +9,8 @@ module View
       class Upgrades < Snabberb::Component
         needs :tile
         needs :region_use
+        needs :loc, default: nil
+        needs :formatter, default: nil
 
         def render
           @tile.upgrades.map do |upgrade|
@@ -18,6 +20,9 @@ module View
               cost: upgrade.cost,
               terrains: upgrade.terrains,
               tile: @tile,
+              size: upgrade.size,
+              loc: @loc,
+              formatter: @formatter,
             )
           end
         end

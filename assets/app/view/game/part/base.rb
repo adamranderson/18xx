@@ -6,6 +6,7 @@ module View
       class Base < Snabberb::Component
         needs :region_use
         needs :tile, default: nil
+        needs :loc, default: nil
 
         UPPER_LEFT = [0, 1, 2].freeze
         UPPER_RIGHT = [2, 3, 4].freeze
@@ -36,6 +37,13 @@ module View
         TRACK_TO_EDGE_3 = [2, 8].freeze
         TRACK_TO_EDGE_4 = [9, 10].freeze
         TRACK_TO_EDGE_5 = [16, 17].freeze
+
+        TRACK_TO_EDGE_0P5 = [14, 15, 19, 20].freeze
+        TRACK_TO_EDGE_1P5 = [5, 7, 12, 4].freeze
+        TRACK_TO_EDGE_2P5 = [0, 1, 7, 8].freeze
+        TRACK_TO_EDGE_3P5 = [3, 4, 8, 9].freeze
+        TRACK_TO_EDGE_4P5 = [9, 11, 16, 18].freeze
+        TRACK_TO_EDGE_5P5 = [15, 16, 22, 23].freeze
 
         TOP_ROW = [0, 1, 2, 3, 4].freeze
         TOP_MIDDLE_ROW = [6, 7, 8, 9, 10].freeze
@@ -145,9 +153,13 @@ module View
         end
 
         def render_location
-          @render_location ||= preferred_render_locations.min_by.with_index do |t, i|
-            [combined_cost(t[:region_weights_in] || t[:region_weights]), i]
-          end
+          @render_location ||=
+            begin
+              locations = @loc ? preferred_render_locations_by_loc : preferred_render_locations
+              locations.min_by.with_index do |t, i|
+                [combined_cost(t[:region_weights_in] || t[:region_weights]), i]
+              end
+            end
         end
 
         # use this method to set instance vars that can be used in the other

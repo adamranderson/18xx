@@ -6,60 +6,63 @@ require_relative '../route'
 module Engine
   module Action
     class RunRoutes < Base
-      attr_reader :routes
+      attr_reader :routes, :extra_revenue
 
-      def initialize(entity, routes:)
-        @entity = entity
+      def initialize(entity, routes:, extra_revenue: 0)
+        super(entity)
         @routes = routes
+        @extra_revenue = extra_revenue
       end
 
       def self.h_to_args(h, game)
         routes = []
 
         h['routes'].each do |route|
-          # hexes and revenue are for backwards compatability
-          # they can be removed in the future
-          override = nil
-
-          if (hex_ids = route['hexes'])
-            override = {
-              hexes: hex_ids.map { |id| game.hex_by_id(id) },
-              revenue: route['revenue'],
-            }
-          end
-
-          connection_hexes = route['connections']&.map do |ids|
-            ids.map { |id| game.hex_by_id(id) }
-          end
+          opts = {
+            connection_hexes: route['connections'],
+            hexes: route['hexes']&.map { |id| game.hex_by_id(id) },
+            revenue: route['revenue'],
+            revenue_str: route['revenue_str'],
+            subsidy: route['subsidy'],
+            halts: route['halts'],
+            abilities: route['abilities'],
+            nodes: route['nodes'],
+          }.select { |_, v| v }
 
           routes << Route.new(
             game,
             game.phase,
             game.train_by_id(route['train']),
-            connection_hexes: connection_hexes,
-            override: override,
             routes: routes,
+            **opts,
           )
         end
 
-        { routes: routes }
+        {
+          routes: routes,
+          extra_revenue: h['extra_revenue'],
+        }
       end
 
       def args_to_h
         routes = @routes.map do |route|
-          h = { 'train' => route.train.id }
-
-          if route.connections.any?
-            h['connections'] = route.connection_hexes
-          else # legacy routes
-            h['hexes'] = route.hexes.map(&:id)
-            h['revenue'] = route.revenue
-          end
-
-          h
+          {
+            'train' => route.train.id,
+            'connections' => route.connection_hexes,
+            'hexes' => route.hexes.map(&:id),
+            'revenue' => route.revenue,
+            'revenue_str' => route.revenue_str,
+            'subsidy' => route.subsidy,
+            'halts' => route.halts,
+            'abilities' => route.abilities,
+            'nodes' => route.node_signatures,
+          }.select { |_, v| v }
         end
 
-        { 'routes' => routes }
+        {
+          'routes' => routes,
+          'extra_revenue' => extra_revenue,
+        }
       end
     end
   end

@@ -1,30 +1,31 @@
 # frozen_string_literal: true
 
+require_relative 'entity'
 require_relative 'passer'
 require_relative 'share_holder'
 require_relative 'spender'
 
 module Engine
   class Player
+    include Entity
     include Passer
     include ShareHolder
     include Spender
 
-    attr_reader :name, :companies
+    attr_accessor :bankrupt
+    attr_reader :name, :companies, :id, :history, :unsold_companies
 
-    def initialize(name, count_companies: true)
+    def initialize(id, name)
+      @id = id
       @name = name
       @cash = 0
       @companies = []
-      @count_companies = count_companies
+      @history = []
+      @unsold_companies = []
     end
 
     def value
       @cash + shares.select { |s| s.corporation.ipoed }.sum(&:price) + @companies.sum(&:value)
-    end
-
-    def id
-      @name
     end
 
     def owner
@@ -35,37 +36,28 @@ module Engine
       self
     end
 
+    def corporation
+      nil
+    end
+
     def ==(other)
-      @name == other&.name
+      !!other&.player? && (@name == other.name)
     end
 
     def player?
       true
     end
 
-    def company?
-      false
-    end
-
-    def corporation?
-      false
-    end
-
-    def minor?
-      false
-    end
-
-    def operator?
-      false
-    end
-
-    def num_certs
-      num_companies = @count_companies ? companies.size : 0
-      num_companies + shares.count { |s| s.corporation.counts_for_limit }
+    def rename!(new_name)
+      @name = new_name
     end
 
     def to_s
       "#{self.class.name} - #{@name}"
+    end
+
+    def inspect
+      "<#{self.class.name} - #{@name}>"
     end
   end
 end

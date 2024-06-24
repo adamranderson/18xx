@@ -12,7 +12,10 @@ module View
           style: { margin: '1rem 0 1.5rem 0' },
         }
 
-        h('div.players', props, @game.players.map { |p| h(Player, player: p, game: @game) })
+        children = @game.player_entities.map { |p| h(Player, player: p, game: @game) }
+        active_step = @game.round.active_step
+        children.unshift(h(Bank, game: @game)) if active_step.respond_to?(:seed_money) && active_step.seed_money
+        h('div.players', props, children.compact)
       end
     end
   end

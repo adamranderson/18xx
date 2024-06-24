@@ -15,11 +15,11 @@ module Engine
       end
 
       def active_entities
-        [crowded_corps&.first].compact
+        crowded_corps.take(1)
       end
 
       def active?
-        crowded_corps.any?
+        !crowded_corps.empty?
       end
 
       def description
@@ -33,9 +33,11 @@ module Engine
       end
 
       def crowded_corps
-        @game.corporations.select do |c|
-          c.trains.reject(&:obsolete).size > @game.phase.train_limit
-        end
+        @game.crowded_corps
+      end
+
+      def trains(corporation)
+        corporation.trains
       end
     end
   end

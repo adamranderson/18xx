@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# backtick_javascript: true
+
 module View
   class Flash < Snabberb::Component
     # flash_opts can be passed as a string which will default to salmon
@@ -12,17 +14,20 @@ module View
       @flash_opts = { message: @flash_opts } if @flash_opts.is_a?(String)
       return h(:div) unless @flash_opts&.any?
 
+      `setTimeout(function() { self['$store']('flash_opts', Opal.hash()) }, 3000)`
+
       props = {
         style: {
+          boxSizing: 'border-box',
           padding: '1em',
           position: 'fixed',
           cursor: 'pointer',
           top: '0',
           left: '0',
           width: '100%',
-          'z-index': '10000',
-          'text-align': 'center',
-          'background-color': @flash_opts[:color] || 'salmon',
+          zIndex: '10000',
+          textAlign: 'center',
+          backgroundColor: @flash_opts[:color] || 'salmon',
           color: 'black',
         },
         on: { click: -> { store(:flash_opts, {}) } },

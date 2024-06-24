@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# backtick_javascript: true
+
 require 'game_manager'
 
 module View
@@ -8,6 +10,7 @@ module View
       include GameManager
 
       needs :allow_clone, default: true
+      needs :allow_delete, default: false
       needs :show_json, default: false, store: true
       needs :actions
 
@@ -17,17 +20,18 @@ module View
 
         props = {
           style: {
-            'white-space': 'pre-wrap',
+            whiteSpace: 'pre-wrap',
           },
         }
 
-        children = [render_clone_game]
+        children = [render_game_data_buttons]
         children << @json if @show_json
         h(:div, props, children)
       end
 
-      def render_clone_game
+      def render_game_data_buttons
         clone_game = lambda do
+          @connection.unsubscribe(url(@game_data))
           store(:game, nil, skip: true)
           create_hotseat(**@game_data, description: "Cloned from game #{@game_data[:id]}")
         end
@@ -42,37 +46,58 @@ module View
           )
         end
 
-        copy_button = h(
-          'button.button.margined',
-          { on: { click: copy_data } },
-          'Copy Game Data',
-        )
+        buttons = [
+          h(:h3, 'Game Data'),
+          h(:button, {
+              on: { click: -> { store(:show_json, !@show_json) } },
+              style: { width: '4.2rem' },
+            },
+            (@show_json ? 'Hide' : 'Show').to_s),
+          h(:button, { on: { click: copy_data } }, 'Copy'),
+          h('a.button_link', {
+              attrs: {
+                href: "data:text/plain;charset=utf-8,#{`encodeURI(self.json)`}",
+                download: "#{@game_data[:id]}.json",
+              },
+            }, 'Download'),
+        ]
 
-        show_button = h(
-          'button.button.margined',
-          { on: { click: -> { store(:show_json, !@show_json) } } },
-          (@show_json ? 'Hide Game Data' : 'Show Game Data')
-        )
+        if @allow_delete
+          delete_game = lambda do
+            delete_game(@game_data)
+            store(:app_route, '/')
+          end
+
+          buttons << h(:button, { on: { click: delete_game } }, 'Delete Game')
+        end
 
         if @allow_clone
-          clone_button = h(
-            'button.button',
-            { style: { margin: '1rem' }, on: { click: clone_game } },
-            'Clone Game',
-          )
-
-          h('div.margined', [
-            h(:span, 'Clone this game to play around in hotseat mode'),
-            clone_button,
-            copy_button,
-            show_button,
-          ])
-        else
-          h('div.margined', [
-            copy_button,
-            show_button,
-          ])
+          buttons << h(:button, { on: { click: clone_game }, style: { marginRight: '0.3rem' } }, 'Clone Game')
+          buttons << h(:label, 'to play around in hotseat mode')
         end
+
+        buttons.concat(render_random_seed)
+
+        h('div.margined', buttons)
+      end
+
+      def render_random_seed
+        return [] unless (@seed = @game_data.dig('settings', 'seed'))
+
+        copy_seed = lambda do
+          `navigator.clipboard.writeText(self.seed)`
+          store(
+            :flash_opts,
+            { message: "Copied random seed #{@seed} to the clipboard", color: 'lightgreen' },
+            skip: false,
+          )
+        end
+        [
+          h(:br),
+          h(:button, { on: { click: copy_seed } }, 'Copy Random Seed'),
+          h(:a, { attrs: { href: 'https://github.com/tobymao/18xx/wiki/Random-Seeds', target: '_blank' } },
+            'More info on random seeds'),
+        ]
       end
     end
   end

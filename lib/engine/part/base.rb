@@ -7,10 +7,14 @@ module Engine
     class Base
       include Helper::Type
 
-      attr_accessor :index, :tile
+      attr_accessor :index, :tile, :loc
 
       def id
-        "#{tile.id}-#{index}"
+        @id ||= "#{tile.id}-#{index}"
+      end
+
+      def signature
+        "#{hex&.id}-#{index}"
       end
 
       def hex
@@ -18,7 +22,7 @@ module Engine
       end
 
       def <=(other)
-        self.class == other.class
+        instance_of?(other.class)
       end
 
       def <=>(other)
@@ -65,11 +69,19 @@ module Engine
         false
       end
 
+      def future_label?
+        false
+      end
+
       def path?
         false
       end
 
       def town?
+        false
+      end
+
+      def halt?
         false
       end
 
@@ -90,6 +102,26 @@ module Engine
       end
 
       def blocks_lay?
+        false
+      end
+
+      def stub?
+        false
+      end
+
+      def frame?
+        false
+      end
+
+      def stripes?
+        false
+      end
+
+      def partition?
+        false
+      end
+
+      def pass?
         false
       end
 

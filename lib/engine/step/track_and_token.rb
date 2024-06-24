@@ -37,10 +37,6 @@ module Engine
         setup
       end
 
-      def sequential?
-        true
-      end
-
       def can_place_token?(entity)
         super && !@tokened
       end
@@ -48,13 +44,14 @@ module Engine
       def can_lay_tile?(entity)
         free = false
 
-        entity.abilities(:tile_lay) do |ability|
+        @game.abilities(entity, :tile_lay) do |ability|
           ability.hexes.each do |hex_id|
-            free = true if ability.free && @game.hex_by_id(hex_id).tile.preprinted
+            free = true if (ability.free || ability.discount >= @game.class::TILE_COST) &&
+                           @game.hex_by_id(hex_id).tile.preprinted
           end
         end
 
-        (free || entity.cash >= @game.class::TILE_COST) && super(entity)
+        (free || buying_power(entity) >= @game.class::TILE_COST) && super
       end
 
       def process_place_token(action)
@@ -68,6 +65,13 @@ module Engine
       def process_lay_tile(action)
         lay_tile_action(action)
         pass! if !can_lay_tile?(action.entity) && @tokened
+      end
+
+      def available_hex(entity, hex)
+        return true if can_lay_tile?(entity) && tracker_available_hex(entity, hex)
+        return true if can_place_token?(entity) && tokener_available_hex(entity, hex)
+
+        false
       end
     end
   end
